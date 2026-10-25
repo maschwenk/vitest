@@ -67,7 +67,6 @@ export async function run(
           moduleRunner.mocker?.reset()
           resetModules(workerState.evaluatedModules, true)
           if (config.experimental.isolateMocksPerFile) {
-            // mocks created by earlier files in this process are not reset by this file
             forgetAllMocks()
           }
         }

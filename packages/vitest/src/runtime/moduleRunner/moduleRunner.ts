@@ -225,12 +225,7 @@ export class VitestModuleRunner extends viteModuleRunner.ModuleRunner implements
     return this._cachedRequest(url, mod, callstack, metadata)
   }
 
-  /**
-   * With `experimental.isolateMocksPerFile`, remembers the test file each module
-   * is evaluated for, and tells whether the importer of `mod` belongs to an
-   * earlier file whose modules were reset. Loading `mod` for it would put the
-   * module into the current file's graph before that file registers its mocks.
-   */
+  // the importer was evaluated for an earlier test file and has been reset since
   private isFromFinishedFile(mod: EvaluatedModuleNode, callstack: string[]): boolean {
     const { config, filepath } = this.vitestOptions.getWorkerState()
     if (!config.isolate || !config.experimental.isolateMocksPerFile || !filepath) {
