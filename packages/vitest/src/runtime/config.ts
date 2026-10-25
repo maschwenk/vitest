@@ -166,6 +166,7 @@ export interface SerializedConfig {
     viteModuleRunner: boolean
     nodeLoader: boolean
     recordDependencies: boolean
+    isolateMocksPerFile: boolean
     openTelemetry:
       | {
           enabled: boolean

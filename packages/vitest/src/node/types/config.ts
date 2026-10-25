@@ -1048,6 +1048,18 @@ export interface InlineConfig {
     recordDependencies?: boolean
 
     /**
+     * For custom pools that run several isolated test files in one process.
+     * Before each file, `vi.clearAllMocks()` and `vi.resetAllMocks()` stop reaching
+     * mocks created by earlier files, and an import requested by a module of an
+     * earlier file never resolves instead of loading into the current file.
+     *
+     * Built-in pools start a new process or context for every isolated file, so
+     * this has no effect on them.
+     * @default false
+     */
+    isolateMocksPerFile?: boolean
+
+    /**
      * Parse test specifications before running them.
      * This will apply `.only` flag and test name pattern across all files without running them.
      */

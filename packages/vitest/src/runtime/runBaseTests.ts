@@ -4,6 +4,7 @@ import type { SerializedConfig } from './config'
 import type { TestModuleRunner } from './moduleRunner/testModuleRunner'
 import type { FileSpecification } from './runner/types'
 import { performance } from 'node:perf_hooks'
+import { forgetAllMocks } from '@vitest/spy'
 import { startCoverageInsideWorker, stopCoverageInsideWorker } from '../integrations/coverage'
 import { resolveSnapshotEnvironment } from '../integrations/snapshot/environments/resolveSnapshotEnvironment'
 import { vi } from '../integrations/vi'
@@ -65,6 +66,10 @@ export async function run(
         if (config.isolate) {
           moduleRunner.mocker?.reset()
           resetModules(workerState.evaluatedModules, true)
+          if (config.experimental.isolateMocksPerFile) {
+            // mocks created by earlier files in this process are not reset by this file
+            forgetAllMocks()
+          }
         }
 
         workerState.filepath = file.filepath

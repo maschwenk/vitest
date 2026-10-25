@@ -823,6 +823,16 @@ export function resetAllMocks(): void {
   forEachDirty(DIRTY_MOCK_CONFIGS, (mock) => mock.mockReset())
 }
 
+/**
+ * Stops `clearAllMocks()` and `resetAllMocks()` from reaching every mock
+ * created so far, without clearing or resetting them.
+ * @internal
+ */
+export function forgetAllMocks(): void {
+  DIRTY_MOCK_STATES.clear()
+  DIRTY_MOCK_CONFIGS.clear()
+}
+
 function throwConstructorError(shorthand: string): never {
   throw new TypeError(
     `Cannot use \`${shorthand}\` when called with \`new\`. Use \`mockImplementation\` with a \`class\` keyword instead. See https://vitest.dev/api/mock#class-support for more information.`,

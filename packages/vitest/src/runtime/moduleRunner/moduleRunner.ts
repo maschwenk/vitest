@@ -48,6 +48,7 @@ export class VitestModuleRunner extends viteModuleRunner.ModuleRunner implements
   public moduleExecutionInfo: ModuleExecutionInfo
   private _otel: Traces
   private _callstacks: WeakMap<EvaluatedModuleNode, string[]>
+  private _evaluatedFor = new WeakMap<EvaluatedModuleNode, string>()
 
   constructor(private vitestOptions: VitestModuleRunnerOptions) {
     const options = vitestOptions
@@ -165,6 +166,11 @@ export class VitestModuleRunner extends viteModuleRunner.ModuleRunner implements
     metadata?: SSRImportMetadata,
     ignoreMock = false,
   ): Promise<any> {
+    if (this.isFromFinishedFile(mod, callstack)) {
+      // a fresh process would have ended this work with the file that started it
+      return new Promise(() => {})
+    }
+
     // Track for a better error message if dynamic import is not resolved properly
     this._callstacks.set(mod, callstack)
 
@@ -217,6 +223,35 @@ export class VitestModuleRunner extends viteModuleRunner.ModuleRunner implements
       return mocked
     }
     return this._cachedRequest(url, mod, callstack, metadata)
+  }
+
+  /**
+   * With `experimental.isolateMocksPerFile`, remembers the test file each module
+   * is evaluated for, and tells whether the importer of `mod` belongs to an
+   * earlier file whose modules were reset. Loading `mod` for it would put the
+   * module into the current file's graph before that file registers its mocks.
+   */
+  private isFromFinishedFile(mod: EvaluatedModuleNode, callstack: string[]): boolean {
+    const { config, filepath } = this.vitestOptions.getWorkerState()
+    if (!config.isolate || !config.experimental.isolateMocksPerFile || !filepath) {
+      return false
+    }
+    const importer = callstack.length
+      ? this.evaluatedModules.getModuleById(callstack[callstack.length - 1])
+      : undefined
+    if (
+      importer &&
+      !importer.evaluated &&
+      !importer.promise &&
+      this._evaluatedFor.has(importer) &&
+      this._evaluatedFor.get(importer) !== filepath
+    ) {
+      return true
+    }
+    if (!mod.evaluated && !mod.promise) {
+      this._evaluatedFor.set(mod, filepath)
+    }
+    return false
   }
 
   /** @internal */

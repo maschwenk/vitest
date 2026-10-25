@@ -469,6 +469,18 @@ If module runner is disabled, Vitest uses a native [Node.js module loader](https
 
 If you don't use these features, you can disable this to improve performance.
 
+## experimental.isolateMocksPerFile <Version type="experimental">5.1.0</Version> {#experimental-isolatemocksperfile}
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+For [custom pools](/guide/advanced/pool) that run several isolated test files in one process. Vitest already resets the module graph and module mocks before each such file. With this option it also:
+
+- stops `vi.clearAllMocks()` and `vi.resetAllMocks()` from reaching mocks that earlier files created
+- never resolves an import requested by a module of an earlier file, for example from a timer that file left running, instead of loading it into the current file before its `vi.mock` calls are registered
+
+The built-in pools start a new process or context for every isolated file, so the option has no effect on them.
+
 ## experimental.preParse <Version type="experimental">4.1.3</Version> {#experimental-preparse}
 
 - **Type:** `boolean`

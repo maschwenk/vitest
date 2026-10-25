@@ -148,6 +148,7 @@ export function serializeConfig(project: TestProject): SerializedConfig {
       viteModuleRunner: config.experimental.viteModuleRunner ?? true,
       nodeLoader: config.experimental.nodeLoader ?? true,
       recordDependencies: !!globalConfig.experimental.recordDependencies && !!globalConfig.cache,
+      isolateMocksPerFile: config.experimental.isolateMocksPerFile ?? false,
       openTelemetry: config.experimental.openTelemetry,
     },
     tags: config.tags || [],
