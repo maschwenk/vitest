@@ -246,6 +246,31 @@ test('the array is not empty when spying', () => {
   expect(array[3].array).toEqual([1])
 })
 
+test.each(['automock', 'autospy'] as const)(
+  '%s does not change the prototype chain of generator functions',
+  async (type) => {
+    function* generator() {
+      yield 1
+    }
+    async function* asyncGenerator() {
+      yield 1
+    }
+    const generatorParent = Object.getPrototypeOf(generator.prototype)
+    const asyncGeneratorParent = Object.getPrototypeOf(asyncGenerator.prototype)
+
+    const mocked = vi.mockObject({ generator, asyncGenerator }, { spy: type === 'autospy' })
+    mocked.generator.mockReset()
+    mocked.asyncGenerator.mockReset()
+    mocked.generator.mockImplementation(function* () {})
+    mocked.asyncGenerator.mockImplementation(async function* () {})
+
+    expect(Object.getPrototypeOf(generator.prototype)).toBe(generatorParent)
+    expect(Object.getPrototypeOf(asyncGenerator.prototype)).toBe(asyncGeneratorParent)
+    expect([...generator()]).toEqual([1])
+    expect(await Array.fromAsync(asyncGenerator())).toEqual([1])
+  },
+)
+
 function mockModule(type: 'automock' | 'autospy' = 'automock') {
   return vi.mockObject(
     {

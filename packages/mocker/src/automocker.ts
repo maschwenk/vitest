@@ -116,6 +116,15 @@ export function mockObject(
 
       const isFunction = type.includes('Function') && typeof value === 'function'
       if ((!isFunction || value._isMockFunction) && type !== 'Object' && type !== 'Module') {
+        // the spy re-parents a mock prototype without methods (a generator
+        // function's, for one), so the mock must not share it with the original
+        if (
+          property === 'prototype' &&
+          typeof newContainer === 'function' &&
+          collectFunctionProperties(value).length === 0
+        ) {
+          continue
+        }
         define(newContainer, property, value)
         continue
       }
