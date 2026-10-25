@@ -10,7 +10,9 @@ import type { GetterTracker } from '../getter-tracker'
 import type { VitestEvaluatedModules } from './evaluatedModules'
 import type { ModuleExecutionInfo } from './moduleDebug'
 import type { VitestVmOptions } from './moduleRunner'
+import { url as inspectorUrl } from 'node:inspector'
 import { createRequire, isBuiltin } from 'node:module'
+import nodeProcess from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import {
@@ -24,6 +26,32 @@ import { Traces } from '../../utils/traces'
 import { ModuleDebug } from './moduleDebug'
 
 const isWindows = process.platform === 'win32'
+
+let SOURCEMAPPING_URL = 'sourceMa'
+SOURCEMAPPING_URL += 'ppingURL'
+
+const INLINE_SOURCE_MAP_MARKER = '\n//# sourceMappingSource=vite-generated\n'
+// optionally followed by the fs module cache metadata
+const INLINE_SOURCE_MAP_TAIL = new RegExp(
+  `//# ${SOURCEMAPPING_URL}=data:application/json;base64,[A-Za-z0-9+/=]+\\n(?:\\n//# vitestCache=[A-Za-z0-9+/=]+)?$`,
+  'y',
+)
+
+// stack traces stay mapped: the module runner reads the map from `module.meta.code`
+function stripInlineSourceMap(code: string): string {
+  const start = code.lastIndexOf(INLINE_SOURCE_MAP_MARKER)
+  if (start === -1) {
+    return code
+  }
+  INLINE_SOURCE_MAP_TAIL.lastIndex = start + INLINE_SOURCE_MAP_MARKER.length
+  return INLINE_SOURCE_MAP_TAIL.test(code) ? code.slice(0, start) : code
+}
+
+// these read the comment from the compiled script;
+// `node:process` because tests can stub `globalThis.process`
+function canStripInlineSourceMap(): boolean {
+  return !nodeProcess.env.NODE_V8_COVERAGE && !nodeProcess.sourceMapsEnabled && !inspectorUrl()
+}
 
 // Compiled scripts of inlined modules, shared across vm contexts: vm pools
 // evaluate every module again in each fresh context, but the compiled script
@@ -55,6 +83,7 @@ export interface VitestModuleEvaluatorOptions {
   metaEnv?: ModuleRunnerImportMeta['env']
   interopDefault?: boolean | undefined
   injectCjsGlobals?: boolean | undefined
+  stripSourceMapComments?: boolean | undefined
   moduleExecutionInfo?: ModuleExecutionInfo
   getCurrentTestFilepath?: () => string | undefined
   getEnvironmentName?: () => string
@@ -391,7 +420,11 @@ export class VitestModuleEvaluator implements ModuleEvaluator {
 
     // add 'use strict' since ESM enables it by default
     const codeDefinition = `'use strict';async (${argumentsList.join(',')})=>{{`
-    const wrappedCode = `${codeDefinition}${code}\n}}`
+    const executedCode =
+      this.options.stripSourceMapComments && !this.vm && canStripInlineSourceMap()
+        ? stripInlineSourceMap(code)
+        : code
+    const wrappedCode = `${codeDefinition}${executedCode}\n}}`
     const options = {
       // use original id for auto spy module (vi.mock(..., { spy: true }))
       filename: module.id.startsWith('mock:') ? module.id.slice(5) : module.id,

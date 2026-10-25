@@ -469,6 +469,23 @@ If module runner is disabled, Vitest uses a native [Node.js module loader](https
 
 If you don't use these features, you can disable this to improve performance.
 
+## experimental.stripSourceMapComments <Version type="experimental">5.1.0</Version> {#experimental-stripsourcemapcomments}
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+Vitest appends an inline source map comment to every transformed module, and V8 compiles that comment together with the code. The base64 map is often as large as the code itself. Vite's module runner does not need it there: it reads the source map from the module source it already keeps.
+
+With this option, Vitest compiles modules without the comment. Stack traces still point to the original source. This can make loading large module graphs faster.
+
+The option is ignored with:
+
+- [`vm` pools](/config/pool#vmthreads)
+- [watch mode](/config/watch)
+- [coverage](/config/coverage) and the `NODE_V8_COVERAGE` environment variable
+- Node.js source maps (`--enable-source-maps`)
+- the [inspector](/guide/debugging) (`--inspect`, `--inspect-brk`, or an inspector opened at runtime)
+
 ## experimental.preParse <Version type="experimental">4.1.3</Version> {#experimental-preparse}
 
 - **Type:** `boolean`

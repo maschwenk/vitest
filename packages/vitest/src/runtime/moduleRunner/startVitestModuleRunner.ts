@@ -116,6 +116,15 @@ export function startVitestModuleRunner(options: ContextModuleRunnerOptions): Vi
       get injectCjsGlobals() {
         return state().config.injectCjsGlobals
       },
+      get stripSourceMapComments() {
+        const config = state().config
+        return (
+          config.experimental.stripSourceMapComments &&
+          !config.coverage.enabled &&
+          !config.watch &&
+          !config.inspector.enabled
+        )
+      },
       getCurrentTestFilepath: () => state().filepath,
       getEnvironmentName: environment,
       getterTracker: state().getterTracker,

@@ -1024,6 +1024,15 @@ export interface InlineConfig {
      * This option only affects `loader.load` method, Vitest always defines a `loader.resolve` to populate the module graph.
      */
     nodeLoader?: boolean
+    /**
+     * Compile modules without the inline source map comment. Stack traces stay mapped
+     * because Vite's module runner reads the source map from the module source it keeps.
+     *
+     * Ignored in `vm` pools, in watch mode, when coverage or the inspector is enabled,
+     * when `NODE_V8_COVERAGE` is set, and when Node.js source maps are enabled.
+     * @default false
+     */
+    stripSourceMapComments?: boolean
 
     /**
      * Provider for detecting changed files. Used with the `--changed` flag

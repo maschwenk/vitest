@@ -1013,6 +1013,13 @@ Control whether Vitest uses Vite's module runner to run the code or fallback to 
 
 Controls whether Vitest will use Node.js Loader API to process in-source or mocked files. This has no effect if `viteModuleRunner` is enabled. Disabling this can increase performance. (default: `true`)
 
+### experimental.stripSourceMapComments
+
+- **CLI:** `--experimental.stripSourceMapComments`
+- **Config:** [experimental.stripSourceMapComments](/config/experimental#experimental-stripsourcemapcomments)
+
+Compile modules without the inline source map comment. Stack traces stay mapped. Ignored in `vm` pools, in watch mode, and when coverage, the inspector or Node.js source maps are enabled. (default: `false`)
+
 ### experimental.vcsProvider
 
 - **CLI:** `--experimental.vcsProvider <path>`
