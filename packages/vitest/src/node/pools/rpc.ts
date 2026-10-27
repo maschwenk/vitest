@@ -137,11 +137,12 @@ export function createMethodsRPC(
         if (!transformResult || node.id == null) {
           continue
         }
-        // the transformed code is already stored on disk either by the forks
-        // pool (`cacheFs`) or by `fsModuleCache` — the worker can
-        // read the file itself instead of fetching each module separately.
+        // the transformed code is already stored on disk either in the forks
+        // pool's pack (`cacheFs`) or by `fsModuleCache` — the worker can
+        // read it itself instead of fetching each module separately.
         // invalidated modules lose `transformResult` and drop out automatically
-        const tmp = transformResult.__vitestTmp
+        const packed = cacheFs ? transformResult.__vitestPack : undefined
+        const tmp = packed?.file ?? transformResult.__vitestTmp
         if (typeof tmp !== 'string') {
           continue
         }
@@ -150,6 +151,8 @@ export function createMethodsRPC(
           file: node.file,
           id: node.id,
           tmp,
+          offset: packed?.offset,
+          length: packed?.length,
           url: node.url,
           invalidate: false,
           moduleType: transformResult.__vitestModuleType,

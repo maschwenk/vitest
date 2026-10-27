@@ -54,6 +54,10 @@ export type VitestFetchResult = FetchResult & { moduleType?: ModuleType }
 export interface FetchCachedFileSystemResult {
   cached: true
   tmp: string
+  // byte range of the code inside `tmp` when the forks pool packs every
+  // module into one file; the whole file is the code otherwise
+  offset?: number
+  length?: number
   id: string
   file: string | null
   url: string

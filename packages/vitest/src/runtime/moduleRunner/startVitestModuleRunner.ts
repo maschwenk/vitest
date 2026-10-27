@@ -5,17 +5,15 @@ import type { WorkerGlobalState } from '../../types/worker'
 import type { Traces } from '../../utils/traces'
 import type { ExternalModulesExecutor } from '../external-executor'
 import type { CreateImportMeta } from './moduleRunner'
-import fs from 'node:fs'
 import { isBareImport } from '@vitest/utils/helpers'
 import { isBrowserExternal, isBuiltin, toBuiltin } from '../../utils/modules'
 import { getSafeWorkerState } from '../utils'
+import { readCachedCode } from './cachedCode'
 import { getCachedVitestImport } from './cachedResolver'
 import { unwrapId, VitestModuleEvaluator } from './moduleEvaluator'
 import { VitestMocker } from './moduleMocker'
 import { VitestModuleRunner } from './moduleRunner'
 import { removeQuery } from './utils'
-
-const { readFileSync } = fs
 
 export const VITEST_VM_CONTEXT_SYMBOL: string = '__vitest_vm_context__'
 
@@ -210,7 +208,7 @@ export function startVitestModuleRunner(options: ContextModuleRunnerOptions): Vi
             if (warmResult) {
               if ('tmp' in warmResult) {
                 try {
-                  const code = readFileSync(warmResult.tmp, 'utf-8')
+                  const code = readCachedCode(warmResult)
                   return { code, ...warmResult }
                 } catch {
                   // the tmp file is gone — fall back to a live fetch
@@ -226,7 +224,7 @@ export function startVitestModuleRunner(options: ContextModuleRunnerOptions): Vi
             rpc().fetch(id, importer, environment(), options, otelCarrier),
           )
           if ('cached' in result) {
-            const code = readFileSync(result.tmp, 'utf-8')
+            const code = readCachedCode(result)
             return { code, ...result }
           }
           return result

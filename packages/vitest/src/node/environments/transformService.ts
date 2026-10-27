@@ -22,16 +22,17 @@ import type {
 } from '../cache/fsModuleCache'
 import type { VitestResolver } from '../resolver'
 import type { ResolvedConfig } from '../types/config'
-import { existsSync, mkdirSync } from 'node:fs'
+import type { PackedModule } from './modulePack'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { isExternalUrl, unwrapId } from '@vitest/utils/helpers'
 import { join } from 'pathe'
 import c from 'tinyrainbow'
 import { fetchModule } from 'vite'
 import { createDebugger } from '../../utils/debugger'
-import { hash } from '../hash'
 import { detectModuleType } from '../resolver'
 import { fsPathFromId } from '../vite'
+import { ModulePack } from './modulePack'
 import { normalizeResolvedIdToUrl } from './normalizeUrl'
 import { getStaticMocks } from './staticMocks'
 
@@ -44,7 +45,8 @@ const saveCachePromises = new Map<
 const readFilePromises = new Map<string, Promise<string | null>>()
 
 export class ModuleTransformService {
-  private tmpDirectories = new Set<string>()
+  private packs = new WeakMap<DevEnvironment, ModulePack>()
+  private packCount = 0
   private fsCacheEnabled: boolean
   // the module type is only needed by the evaluator to decide if CJS
   // variables should be provided to the module, so don't waste time
@@ -151,47 +153,38 @@ export class ModuleTransformService {
     }
 
     const cachePath = await this.getCachePath(environment, moduleGraphModule)
-
-    // full fs caching is disabled, but we still want to keep tmp files if makeTmpCopies is enabled
-    // this is primarily used by the forks pool to avoid using process.send(bigBuffer)
+    let result: VitestFetchResult | FetchCachedFileSystemResult
     if (cachePath == null) {
-      const result = await this.fetchAndProcess(
+      result = await this.fetchAndProcess(environment, url, importer, moduleGraphModule, options)
+      this.recordResult(trace, result)
+    } else {
+      result = await this.fetchWithFsCache(
+        trace,
+        cachePath,
         environment,
         url,
         importer,
         moduleGraphModule,
         options,
       )
-
-      this.recordResult(trace, result)
-
-      if (!makeTmpCopies || !('code' in result)) {
-        return result
-      }
-
-      const transformResult = moduleGraphModule.transformResult
-      const tmpPath = transformResult?.__vitestTmp
-      if (typeof tmpPath === 'string') {
-        return getCachedResult(result, tmpPath)
-      }
-
-      const tmpDir = join(this.tmpProjectDir, environment.name)
-      if (!this.tmpDirectories.has(tmpDir)) {
-        if (!existsSync(tmpDir)) {
-          mkdirSync(tmpDir, { recursive: true })
-        }
-        this.tmpDirectories.add(tmpDir)
-      }
-
-      const tmpFile = join(tmpDir, hash('sha1', result.id, 'hex'))
-      return this.cacheResult(result, tmpFile, transformResult).then((result) => {
-        if (transformResult) {
-          transformResult.__vitestTmp = tmpFile
-        }
-        return result
-      })
     }
 
+    // the forks pool reads the code from disk to avoid using process.send(bigBuffer)
+    if (!makeTmpCopies) {
+      return result
+    }
+    return this.packResult(environment, moduleGraphModule, result)
+  }
+
+  private async fetchWithFsCache(
+    trace: Span,
+    cachePath: string,
+    environment: DevEnvironment,
+    url: string,
+    importer: string | undefined,
+    moduleGraphModule: EnvironmentModuleNode,
+    options?: FetchFunctionOptions,
+  ): Promise<VitestFetchResult | FetchCachedFileSystemResult> {
     if (saveCachePromises.has(cachePath)) {
       return saveCachePromises.get(cachePath)!.then((result) => {
         this.recordResult(trace, result)
@@ -235,6 +228,55 @@ export class ModuleTransformService {
       moduleGraphModule.transformResult.__vitestTmp = cachePath
     }
     return cachedResult
+  }
+
+  // every module of an environment goes into one pack file, so a worker opens
+  // it once instead of opening a tmp file per module for every test file
+  private async packResult(
+    environment: DevEnvironment,
+    moduleGraphModule: EnvironmentModuleNode,
+    result: VitestFetchResult | FetchCachedFileSystemResult,
+  ): Promise<VitestFetchResult | FetchCachedFileSystemResult> {
+    const transformResult = moduleGraphModule.transformResult
+    let code: string | undefined
+    if ('code' in result) {
+      code = result.code
+    } else if ('cached' in result) {
+      code = transformResult?.code
+    }
+    if (code == null || !('id' in result)) {
+      return result
+    }
+
+    try {
+      const packed = await this.getPack(environment).add(code, transformResult)
+      return {
+        cached: true as const,
+        file: result.file,
+        id: result.id,
+        tmp: packed.file,
+        offset: packed.offset,
+        length: packed.length,
+        url: result.url,
+        invalidate: result.invalidate,
+        moduleType: result.moduleType,
+      }
+    } catch (error) {
+      debugFs?.(`failed to pack ${result.id}, serving it without the pack: ${error}`)
+      return result
+    }
+  }
+
+  private getPack(environment: DevEnvironment): ModulePack {
+    let pack = this.packs.get(environment)
+    if (!pack) {
+      // a restarted server recreates its environments, they get a new file
+      pack = new ModulePack(
+        join(this.tmpProjectDir, `${environment.name}-${++this.packCount}.pack`),
+      )
+      this.packs.set(environment, pack)
+    }
+    return pack
   }
 
   private getCachedImports(
@@ -702,9 +744,10 @@ export function handleRollupError(e: unknown): never {
 
 declare module 'vite' {
   export interface TransformResult {
-    // on-disk location of the transformed code, written by either the
-    // `experimental.fsModuleCache` store or the forks pool's tmp copies
+    // on-disk location of the transformed code in the `fsModuleCache` store
     __vitestTmp?: string
+    // location of the transformed code in the forks pool's pack file
+    __vitestPack?: PackedModule
     __vitestModuleType?: ModuleType
     // set by the hoistMocks plugin; null when the file was not hoisted
     __vitestStaticMocks?: StaticMockCall[] | null

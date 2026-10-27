@@ -2,11 +2,11 @@ import type { BuiltinEnvironment, VitestEnvironment } from '../../node/types/con
 import type { Environment } from '../../types/environment'
 import type { WorkerRPC } from '../../types/worker'
 import type { Traces } from '../../utils/traces'
-import { readFileSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'pathe'
 import { EvaluatedModules, ModuleRunner } from 'vite/module-runner'
+import { readCachedCode } from '../../runtime/moduleRunner/cachedCode'
 import { VitestTransport } from '../../runtime/moduleRunner/moduleTransport'
 import { environments } from './index'
 
@@ -31,7 +31,7 @@ function createEnvironmentLoader(root: string, rpc: WorkerRPC): ModuleRunner {
           async fetchModule(id, importer, options) {
             const result = await rpc.fetch(id, importer, '__vitest__', options)
             if ('cached' in result) {
-              const code = readFileSync(result.tmp, 'utf-8')
+              const code = readCachedCode(result)
               return { code, ...result }
             }
             if (isWindows && 'externalize' in result) {
