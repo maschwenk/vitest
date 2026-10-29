@@ -32,6 +32,7 @@
     "@vitest/test-dep-optimizer-unparsable": "file:./deps/optimizer/unparsable",
     "@vitest/ui": "workspace:*",
     "@vitest/utils": "workspace:*",
+    "@vitest/web-worker": "workspace:*",
     "ansivision": "catalog:",
     "flatted": "catalog:",
     "inline-dep": "file:./deps/vite-ssr-resolve/inline-dep",

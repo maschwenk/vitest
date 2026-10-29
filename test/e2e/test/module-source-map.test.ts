@@ -89,6 +89,71 @@ test('keeps the source map comment when the main process has an open inspector',
   expect(testTree()).toEqual({ 'basic.test.ts': { 'compiled source': 'passed' } })
 })
 
+const webWorkerFiles = {
+  'worker.ts': ts`
+const message: string = 'ready'
+self.postMessage(message)
+`,
+  'basic.test.ts': ts`
+import type { Debugger } from 'node:inspector'
+import { close, open } from 'node:inspector'
+import { Session } from 'node:inspector/promises'
+import { expect, inject, onTestFinished, test } from 'vitest'
+import '@vitest/web-worker'
+import MyWorker from './worker?worker'
+
+test('compiled worker source', async () => {
+  if (inject('openWorkerInspector')) {
+    open(0)
+    onTestFinished(() => close())
+  }
+  const worker = new MyWorker()
+  await new Promise(resolve => worker.addEventListener('message', resolve))
+  worker.terminate()
+
+  const session = new Session()
+  session.connect()
+  const scripts: Debugger.ScriptParsedEventDataType[] = []
+  session.on('Debugger.scriptParsed', ({ params }) => scripts.push(params))
+  await session.post('Debugger.enable')
+  session.disconnect()
+  const script = scripts.find(s => s.url.includes('/worker.ts%3Fworker_file'))!
+  expect(script.sourceMapURL.slice(0, 29)).toBe(inject('compiledSourceMap'))
+})
+`,
+}
+
+test.for([
+  {
+    name: 'without the source map comment',
+    inspector: 'none',
+    compiledSourceMap: '',
+  },
+  {
+    name: 'with the source map comment when the main process has an open inspector',
+    inspector: 'main',
+    compiledSourceMap: 'data:application/json;base64,',
+  },
+  {
+    name: 'with the source map comment when the worker has an open inspector',
+    inspector: 'worker',
+    compiledSourceMap: 'data:application/json;base64,',
+  },
+] as const)('compiles web worker modules $name', async ({ inspector, compiledSourceMap }) => {
+  if (inspector === 'main') {
+    openInspector(0)
+    onTestFinished(() => closeInspector())
+  }
+
+  const { stderr, testTree } = await runInlineTests(webWorkerFiles, {
+    pool: 'threads',
+    fsModuleCache: false,
+    provide: { compiledSourceMap, openWorkerInspector: inspector === 'worker' },
+  })
+  expect(stderr).toBe('')
+  expect(testTree()).toEqual({ 'basic.test.ts': { 'compiled worker source': 'passed' } })
+})
+
 test('the fs module cache stores the source map after the code', async () => {
   const config = {
     fsModuleCache: true,
